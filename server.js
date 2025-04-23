@@ -1,49 +1,53 @@
 require('dotenv').config();
-const express = require('express');
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
-const multerStorageCloudinary = require('multer-storage-cloudinary').CloudinaryStorage;
+const express  = require('express');
+const cors     = require('cors');
+const multer   = require('multer');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
 const app = express();
-const port = 3000;
 
-// กำหนดค่า Cloudinary
+// อ่าน PORT จาก env (Render จะตั้งให้)
+const PORT = process.env.PORT || 3000;
+
+// เปิด CORS ให้ทุกที่มาเรียกได้ (ปรับ domain เฉพาะถ้าต้องการเข้มงวด)
+app.use(cors());
+app.use(express.json());
+
+// ตั้งค่า Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET
+  api_key:    process.env.API_KEY,
+  api_secret: process.env.API_SECRET,
 });
 
-// กำหนด Storage สำหรับ multer
-const storage = new multerStorageCloudinary({
-  cloudinary: cloudinary,
+// สร้าง storage ให้ multer ใช้งาน
+const storage = new CloudinaryStorage({
+  cloudinary,
   params: {
     folder: 'foodie/products',
     allowed_formats: ['jpg', 'png', 'jpeg'],
-  }
+  },
 });
 
-// ใช้ multer สำหรับการอัปโหลดไฟล์
-const upload = multer({ storage: storage });
+const upload = multer({ storage });
 
-// API สำหรับอัปโหลดรูปภาพ
+// Route: upload ภาพ
 app.post('/upload-image', upload.single('file'), (req, res) => {
-  try {
-    if (req.file) {
-      res.status(200).json({
-        message: 'Image uploaded successfully!',
-        secure_url: req.file.secure_url,
-        public_id: req.file.public_id
-      });
-    } else {
-      res.status(400).json({ message: 'No file uploaded' });
-    }
-  } catch (error) {
-    res.status(500).json({ message: 'Upload failed', error: error.message });
+  if (!req.file) {
+    return res.status(400).json({ message: 'No file uploaded' });
   }
+  res.json({
+    message:    'Image uploaded successfully',
+    secure_url: req.file.path || req.file.secure_url, // multer-storage-cloudinary เก็บไว้ path
+    public_id:  req.file.filename || req.file.public_id,
+  });
 });
 
-// เริ่มต้น API server
-app.listen(port, () => {
-  console.log(`API is running on http://localhost:${port}`);
+// ตัวอย่าง Route อื่น (ถ้ามี)
+app.get('/ping', (req, res) => res.send('pong'));
+
+// เริ่ม server
+app.listen(PORT, () => {
+  console.log(`🚀 Upload API running on port ${PORT}`);
 });
